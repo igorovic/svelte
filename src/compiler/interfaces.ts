@@ -89,6 +89,7 @@ export interface Ast {
 	css: Style;
 	instance: Script;
 	module: Script;
+	ssr?: Script;
 }
 
 export interface Warning {
@@ -148,6 +149,7 @@ export interface Var {
 	export_name?: string; // the `bar` in `export { foo as bar }`
 	injected?: boolean;
 	module?: boolean;
+	ssr?: boolean;
 	mutated?: boolean;
 	reassigned?: boolean;
 	referenced?: boolean;  // referenced from template scope

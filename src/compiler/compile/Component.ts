@@ -51,6 +51,7 @@ export default class Component {
 	compile_options: CompileOptions;
 	fragment: Fragment;
 	module_scope: Scope;
+	ssr_scope: Scope;
 	instance_scope: Scope;
 	instance_scope_map: WeakMap<Node, Scope>;
 
@@ -116,7 +117,8 @@ export default class Component {
 			html: ast.html,
 			css: ast.css,
 			instance: ast.instance && JSON.parse(JSON.stringify(ast.instance)),
-			module: ast.module
+			module: ast.module,
+			ssr: ast.ssr
 		};
 
 		this.file =
@@ -164,6 +166,7 @@ export default class Component {
 		}
 
 		this.walk_module_js();
+		this.walk_ssr_js();
 		this.walk_instance_js_pre_template();
 
 		this.fragment = new Fragment(this, ast.html);
@@ -519,6 +522,78 @@ export default class Component {
 				return false;
 			return true;
 		});
+	}
+
+	walk_ssr_js() {
+		const component = this;
+		const script = this.ast.ssr;
+		if (!script) return;
+
+		walk(script.content, {
+			enter(node: Node) {
+				if (node.type === 'LabeledStatement' && node.label.name === '$') {
+					component.warn(node as any, {
+						code: 'module-script-reactive-declaration',
+						message: '$: has no effect in a module script'
+					});
+				}
+			}
+		});
+
+		const { scope, globals } = create_scopes(script.content);
+		this.ssr_scope = scope;
+
+		scope.declarations.forEach((node, name) => {
+			if (name[0] === '$') {
+				this.error(node as any, {
+					code: 'illegal-declaration',
+					message: `The $ prefix is reserved, and cannot be used for variable and import names`
+				});
+			}
+
+			const writable = node.type === 'VariableDeclaration' && (node.kind === 'var' || node.kind === 'let');
+
+			this.add_var({
+				name,
+				ssr: true,
+				hoistable: true,
+				writable
+			});
+		});
+
+		globals.forEach((node, name) => {
+			if (name[0] === '$') {
+				this.error(node as any, {
+					code: 'illegal-subscription',
+					message: `Cannot reference store value inside <script context="module">`
+				});
+			} else {
+				this.add_var({
+					name,
+					global: true,
+					hoistable: true
+				});
+			}
+		});
+
+		const { body } = script.content;
+		let i = body.length;
+		while (--i >= 0) {
+			const node = body[i];
+			if (node.type === 'ImportDeclaration') {
+				this.extract_imports(node);
+				body.splice(i, 1);
+			}
+
+			if (/^Export/.test(node.type)) {
+				const replacement = this.extract_exports(node);
+				if (replacement) {
+					body[i] = replacement;
+				} else {
+					body.splice(i, 1);
+				}
+			}
+		}
 	}
 
 	walk_module_js() {

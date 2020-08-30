@@ -18,10 +18,10 @@ function get_context(parser: Parser, attributes: any[], start: number): string {
 
 	const value = context.value[0].data;
 
-	if (value !== 'module') {
+	if (!['module', 'ssr'].includes(value)) {
 		parser.error({
 			code: `invalid-script`,
-			message: `If the context attribute is supplied, its value must be "module"`
+			message: `If the context attribute is supplied, its value must be "module" or "ssr"`
 		}, context.start);
 	}
 
