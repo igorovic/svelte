@@ -145,9 +145,8 @@ export default function ssr(
 		};` : null}
 
 		${component.extract_javascript(component.ast.module)}
-		
-		const #SSR="SSR test";
-		console.log('test');
+		const #SSR="${component.extract_javascript(component.ast.ssr)}";
+		console.log(#SSR);
 
 		${component.fully_hoisted}
 
